@@ -22,7 +22,7 @@ namespace EmTrac2SF
 	/// </summary>
 	public class DBAccess : IDisposable
 	{
-		public string MainDB = "EmTrac";
+		public string MainDB = "ApplicationName";
 		public const string strLogFile = "dberrlog.txt";
 		public const int iLogLimit = 5000;
 

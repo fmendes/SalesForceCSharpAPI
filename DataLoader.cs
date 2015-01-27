@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Web;
 using System.Data;
-using EmTrac2SF.Salesforce;
-using EmTrac2SF.EMSC2SF;
+using Company2SF.Salesforce;
+using Company2SF.EMSC2SF;
 using Metaphone;
 using GenericLibrary;
 using System.Text;
 using System.IO;
 
-namespace EmTrac2SF
+namespace Company2SF
 {
 	public static class SalesForceExtensions
 	{
@@ -163,7 +163,7 @@ namespace EmTrac2SF
 						objAPI.ConnectionString = "SalesforceLogin";
 						break;
 					case "prod":
-						if( Properties.Settings.Default.EmTrac2SF_EMSC_SF_SforceService.StartsWith( "https://login.salesforce.com" ) )
+						if( Properties.Settings.Default.Company2SF_EMSC_SF_SforceService.StartsWith( "https://login.salesforce.com" ) )
 						{
 							objAPI.ConnectionString = "SalesforcePRODUCTION";
 						}
@@ -194,7 +194,7 @@ namespace EmTrac2SF
 			objDB = new DBAccess();
 			objDB.ErrorLabel = lblErrorParam;
 
-			EmTrac2SFUtils.OpenCSVList = OpenCSVListParam;
+			Company2SFUtils.OpenCSVList = OpenCSVListParam;
 		}
 
 		public bool HandleError( string strErrorMessage, string strCommand )
@@ -202,14 +202,14 @@ namespace EmTrac2SF
 			// report error then save it to a file
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n\r\n** ERROR:  ", objAPI.ErrorMessage
 						, " - Error happened during execution of ", strCommand, " **" );
-			EmTrac2SFUtils.SaveStatusCSV( "", tbStatus, true );
+			Company2SFUtils.SaveStatusCSV( "", tbStatus, true );
 			// do not cancel
 			return false;
 		}
 
 		public bool ReportStatus( params string[] strStatus )
 		{
-			return EmTrac2SFUtils.ReportStatus( strStatus );
+			return Company2SFUtils.ReportStatus( strStatus );
 		}
 
 		public void RemoveAMADuplicates()
@@ -218,7 +218,7 @@ namespace EmTrac2SF
 			bool bContinue = true;
 			while( bContinue )
 			{
-				List<Contact> objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+				List<Contact> objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 				, " Birthdate, Email, Address_Line_1__c, City__c, OtherStreet, OtherCity, HomePhone, MobilePhone, MeNumber__c, Work_Phone__c, SSN__C, AMAOnly__c "
 				, " FirstName > '" + strFirstName + "' AND LastName > '" + strLastName + "'", " LastName, FirstName, AMAOnly__c LIMIT 2000 " );
 
@@ -241,17 +241,17 @@ namespace EmTrac2SF
 							|| objProv.Birthdate.NotNullAndEquals( objPrevious.Birthdate )
 						) )
 					{
-						Contact objAMAContact = null, objEmTracContact = null;
+						Contact objAMAContact = null, objCompanyContact = null;
 						if( objProv.AMAOnly__c.NotNullAndEquals( "1" ) )
 						{
 							objAMAContact = objProv;
-							objEmTracContact = objPrevious;
+							objCompanyContact = objPrevious;
 						}
 						else
 							if( objPrevious.AMAOnly__c.NotNullAndEquals( "1" ) )
 							{
 								objAMAContact = objPrevious;
-								objEmTracContact = objProv;
+								objCompanyContact = objProv;
 							}
 							else 
 								// ignore if neither was from AMA
@@ -263,11 +263,11 @@ namespace EmTrac2SF
 						objProvs4Upd.Add( objAMAContact );
 
 						// copy MENumber if available
-						if( !objAMAContact.MeNumber__c.NotNullAndEquals( "" ) && objEmTracContact.MeNumber__c.NotNullAndEquals( "" ) )
+						if( !objAMAContact.MeNumber__c.NotNullAndEquals( "" ) && objCompanyContact.MeNumber__c.NotNullAndEquals( "" ) )
 						{
-							objEmTracContact.MeNumber__c = objAMAContact.MeNumber__c;
-							objEmTracContact.Name = null;
-							objProvs4Upd.Add( objEmTracContact );
+							objCompanyContact.MeNumber__c = objAMAContact.MeNumber__c;
+							objCompanyContact.Name = null;
+							objProvs4Upd.Add( objCompanyContact );
 						}
 
 						continue;
@@ -288,7 +288,7 @@ namespace EmTrac2SF
 
 		public void RemoveDuplicateNotes()
 		{
-			string strSOQL = "select Id, ParentId from Note where Title like 'EmTrac Note:%' "
+			string strSOQL = "SELECT ID, ParentID FROM NOTE WHERE Title like 'SystemName Note:%' "
 				+ " order by ParentId , Title DESC";
 			List<Note> objNotes = objAPI.Query<Note>( strSOQL );
 
@@ -328,16 +328,16 @@ namespace EmTrac2SF
 
 		public void LoadCredentialsReportedWithErrors()
 		{
-			// load EmTrac credentials
+			// load Company credentials
 			DataTable objDT = objDB.GetDataTableFromSQLFile( "SQLAllCredentials.txt" );
 
 			// load SF agencies
 			string strSOQL = 
-				"select Id, Name, EmTrac_Agency_Match__c, Code__c, City__c from Credential_Agency__c order by Name";
+				"select Id, Name, SystemName_Agency_Match__c, Code__c, City__c from TableStoringAgenciesThatGiveCredentials order by Name";
 			List<Credential_Agency__c> objAgencies = objAPI.Query<Credential_Agency__c>( strSOQL );
 
 			// load SF providers (non-AMA)
-			List<Contact> objProviders = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+			List<Contact> objProviders = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 					 , null, " RecruitingID__c != null ", " RecruitingID__c, PhysicianNumber__c DESC " );
 
 			List<Credential__c> objNewCredentials = new List<Credential__c>(); ;
@@ -398,7 +398,7 @@ namespace EmTrac2SF
 
 						//string strAgency = objCred.Credential_Agency__c;
 						//DataRow[] objAgencyFound = objDTAgencies.Select(
-						//            string.Concat( "EmTrac_Agency_Match__c = '", strAgency, "'" ) );
+						//            string.Concat( "Company_Agency_Match__c = '", strAgency, "'" ) );
 						//if( objAgencyFound.Count() > 0 )
 						//    if( !objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString().Equals( "" ) )
 						//        strAgency = objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString();
@@ -408,14 +408,14 @@ namespace EmTrac2SF
 						if( !objCred.Credential_Agency__c.Equals( "" ) )
 						{
 							objCred.Credential_Agency__r = new Credential_Agency__c();
-							objCred.Credential_Agency__r.EmTrac_Agency_Match__c = objCred.Credential_Agency__c;
+							objCred.Credential_Agency__r.Company_Agency_Match__c = objCred.Credential_Agency__c;
 						}
 						objCred.Credential_Agency__c = null;
 
 						if( !objCred.Credential_Sub_Type__c.Equals( "" ) )
 						{
 							objCred.Credential_Sub_Type__r = new Credential_Subtype__c();
-							objCred.Credential_Sub_Type__r.EmTrac_SubType_Match__c = objCred.Credential_Sub_Type__c;
+							objCred.Credential_Sub_Type__r.Company_SubType_Match__c = objCred.Credential_Sub_Type__c;
 						}
 						objCred.Credential_Sub_Type__c = null;
 
@@ -437,7 +437,7 @@ namespace EmTrac2SF
 							UpsertResult[] objResults = objAPI.Upsert( "Name", objNewCredentials.ToArray<sObject>() );
 
 							// create CSV file / set the Ids in the list of candidates
-							EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
+							Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
 
 							objNewCredentials = new List<Credential__c>();
 						}
@@ -497,14 +497,14 @@ namespace EmTrac2SF
 						if( !objCred.Credential_Agency__c.Equals( "" ) )
 						{
 							objCred.Credential_Agency__r = new Credential_Agency__c();
-							objCred.Credential_Agency__r.EmTrac_Agency_Match__c = objCred.Credential_Agency__c;
+							objCred.Credential_Agency__r.Company_Agency_Match__c = objCred.Credential_Agency__c;
 						}
 						objCred.Credential_Agency__c = null;
 
 						if( !objCred.Credential_Sub_Type__c.Equals( "" ) )
 						{
 							objCred.Credential_Sub_Type__r = new Credential_Subtype__c();
-							objCred.Credential_Sub_Type__r.EmTrac_SubType_Match__c = objCred.Credential_Sub_Type__c;
+							objCred.Credential_Sub_Type__r.Company_SubType_Match__c = objCred.Credential_Sub_Type__c;
 						}
 						objCred.Credential_Sub_Type__c = null;
 
@@ -524,7 +524,7 @@ namespace EmTrac2SF
 							UpsertResult[] objResults = objAPI.Upsert( "Name", objNewCredentials.ToArray<sObject>() );
 
 							// create CSV file / set the Ids in the list of candidates
-							EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
+							Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
 
 							objNewCredentials = new List<Credential__c>();
 						}
@@ -563,7 +563,7 @@ namespace EmTrac2SF
 
 						//string strAgency = objCred.Credential_Agency__c;
 						//DataRow[] objAgencyFound = objDTAgencies.Select(
-						//            string.Concat( "EmTrac_Agency_Match__c = '", strAgency, "'" ) );
+						//            string.Concat( "Company_Agency_Match__c = '", strAgency, "'" ) );
 						//if( objAgencyFound.Count() > 0 )
 						//    if( !objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString().Equals( "" ) )
 						//        strAgency = objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString();
@@ -573,14 +573,14 @@ namespace EmTrac2SF
 						if( !objCred.Credential_Agency__c.Equals( "" ) )
 						{
 							objCred.Credential_Agency__r = new Credential_Agency__c();
-							objCred.Credential_Agency__r.EmTrac_Agency_Match__c = objCred.Credential_Agency__c;
+							objCred.Credential_Agency__r.Company_Agency_Match__c = objCred.Credential_Agency__c;
 						}
 						objCred.Credential_Agency__c = null;
 
 						if( !objCred.Credential_Sub_Type__c.Equals( "" ) )
 						{
 							objCred.Credential_Sub_Type__r = new Credential_Subtype__c();
-							objCred.Credential_Sub_Type__r.EmTrac_SubType_Match__c = objCred.Credential_Sub_Type__c;
+							objCred.Credential_Sub_Type__r.Company_SubType_Match__c = objCred.Credential_Sub_Type__c;
 						}
 						objCred.Credential_Sub_Type__c = null;
 
@@ -602,7 +602,7 @@ namespace EmTrac2SF
 							UpsertResult[] objResults = objAPI.Upsert( "Name", objNewCredentials.ToArray<sObject>() );
 
 							// create CSV file / set the Ids in the list of candidates
-							EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
+							Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
 
 							objNewCredentials = new List<Credential__c>();
 						}
@@ -620,7 +620,7 @@ namespace EmTrac2SF
 				UpsertResult[] objResults = objAPI.Upsert( "Name", objNewCredentials.ToArray<sObject>() );
 
 				// create CSV file / set the Ids in the list of candidates
-				EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
+				Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
 			}
 
 			return;
@@ -628,10 +628,10 @@ namespace EmTrac2SF
 
 		public void LoadMissingCredentials()
 		{
-			// get list of agencies from EmTrac free from duplicates
+			// get list of agencies from Company free from duplicates
 			DataTable objDTAgencies = objDB.GetDataTableFromSQLFile( "SQLAllAgencies.txt" );
 
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDTAgencies );
+			Company2SFUtils.FlagDupesByAddressCityName( objDTAgencies );
 
 			bool bContinueProcessing = true;
 			string strLastRecrId = "0", strCurrentRecrId = "0";
@@ -663,8 +663,8 @@ namespace EmTrac2SF
 
 				// retrieve equivalent credentials from SF
 				string strSOQL = 
-"select Id, Name, Contact__r.RecruitingID__c, Physician_Number__c, Credential_Agency__r.EmTrac_Agency_Match__c "
-+ ", Credential_Number__c , Credential_Type__c, Credential_Sub_Type__r.EmTrac_SubType_Match__c, State__c from Credential__c "
+"select Id, Name, Contact__r.RecruitingID__c, Physician_Number__c, TableStoringAgencyGivingCredentials.Company_Agency_Match__c "
++ ", Credential_Number__c , Credential_Type__c, TableStoringSubTypesOfCredentials.Company_SubType_Match__c, State__c from Credential__c "
 + " where Contact__r.RecruitingID__c <= " + strLastRecrId
 + " and Contact__r.RecruitingID__c >= " + strCurrentRecrId
 + " order by Contact__r.RecruitingID__c, Name DESC ";
@@ -704,7 +704,7 @@ namespace EmTrac2SF
 					// find the non-duplicate equivalent of the agency 
 					// (example:  License105 should become 240 Medical Board of CA)
 					DataRow[] objAgencyFound = objDTAgencies.Select(
-								string.Concat( "EmTrac_Agency_Match__c = '", strAgency, "'" ) );
+								string.Concat( "Company_Agency_Match__c = '", strAgency, "'" ) );
 					if( objAgencyFound.Count() > 0 )
 						if( ! objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString().Equals( "" ) )
 							strAgency = objAgencyFound[ 0 ][ "DuplicateOfCode" ].ToString();
@@ -724,11 +724,11 @@ namespace EmTrac2SF
 										: strState.Equals( "" ) 
 										)
 									&& ( c.Credential_Agency__r != null ?
-										c.Credential_Agency__r.EmTrac_Agency_Match__c.NotNullAndEquals( strAgency ) 
+										c.Credential_Agency__r.Company_Agency_Match__c.NotNullAndEquals( strAgency ) 
 										: strAgency.Equals( "" ) 
 										) 
 									&& ( c.Credential_Sub_Type__r != null ?
-										c.Credential_Sub_Type__r.EmTrac_SubType_Match__c.NotNullAndEquals( strSubType ) 
+										c.Credential_Sub_Type__r.Company_SubType_Match__c.NotNullAndEquals( strSubType ) 
 										: strSubType.Equals( "" ) 
 										) 	
 									);
@@ -775,14 +775,14 @@ namespace EmTrac2SF
 					if( ! objCred.Credential_Agency__c.Equals( "" ) )
 					{
 						objCred.Credential_Agency__r = new Credential_Agency__c();
-						objCred.Credential_Agency__r.EmTrac_Agency_Match__c = objCred.Credential_Agency__c;
+						objCred.Credential_Agency__r.Company_Agency_Match__c = objCred.Credential_Agency__c;
 					}
 					objCred.Credential_Agency__c = null;
 
 					if( ! objCred.Credential_Sub_Type__c.Equals( "" ) )
 					{
 						objCred.Credential_Sub_Type__r = new Credential_Subtype__c();
-						objCred.Credential_Sub_Type__r.EmTrac_SubType_Match__c = objCred.Credential_Sub_Type__c;
+						objCred.Credential_Sub_Type__r.Company_SubType_Match__c = objCred.Credential_Sub_Type__c;
 					}
 					objCred.Credential_Sub_Type__c = null;
 
@@ -805,7 +805,7 @@ namespace EmTrac2SF
 				UpsertResult[] objResults = objAPI.Upsert( "Name", objNewCredentials.ToArray<sObject>() );
 
 				// create CSV file / set the Ids in the list of candidates
-				EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
+				Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNewCredentials );
 
 				// after the last one was processed, stop
 				if( objCredentials.Count == 1 )
@@ -1074,7 +1074,7 @@ namespace EmTrac2SF
 			if( strJobId.Contains( "ERROR" ) )
 				return;
 
-			// create CSV files for emtrac providers
+			// create CSV files for Company providers
 			int iCount = CreateAMAJobAppCSV( strJobId );
 
 			// close the job after submitting batches
@@ -1082,7 +1082,7 @@ namespace EmTrac2SF
 
 		}
 
-		public void BulkLoadJobAppFromEmTrac()
+		public void BulkLoadJobAppFromCompany()
 		{
 
 			// create a job
@@ -1090,8 +1090,8 @@ namespace EmTrac2SF
 			if( strJobId.Contains( "ERROR" ) )
 				return;
 
-			// create CSV files for emtrac providers
-			int iCount = CreateEmTracJobAppCSV( strJobId );
+			// create CSV files for Company providers
+			int iCount = CreateCompanyJobAppCSV( strJobId );
 
 			// close the job after submitting batches
 			string strState = objAPI.RESTSetJobState( strJobId, "Closed" );	// to abort, send "Aborted"
@@ -1101,10 +1101,10 @@ namespace EmTrac2SF
 			//            // *** CSV file containing the contacts goes here ***
 			//            string strCSVContent = "";
 			////@"FirstName,LastName,AccountId,RecruitingID__c
-			////""Test"",""Test"",""001E0000002U9FC"",""0""";	// 001E0000002U9FC = EmCare
+			////""Test"",""Test"",""001E0000002U9FC"",""0""";	// 001E0000002U9FC = Company
 
 			//            // load CSV file
-			//            string strFileName = string.Concat( EmTrac2SFUtils.strPath, "JobApp1.csv" );
+			//            string strFileName = string.Concat( Company2SFUtils.strPath, "JobApp1.csv" );
 			//            StreamReader objSR = new StreamReader( strFileName );
 			//            strCSVContent = objSR.ReadToEnd();
 			//            objSR.Close();
@@ -1125,15 +1125,15 @@ namespace EmTrac2SF
 			//    + "\r\n" + strBatchState;
 		}
 
-		public void BulkLoadProviderFromEmTrac()
+		public void BulkLoadProviderFromCompany()
 		{
 			// create a job
 			string strJobId = objAPI.RESTCreateJob( "upsert", "Contact", "RecruitingID__c", "CSV" );
 			if( strJobId.Contains( "ERROR" ) )
 				return;
 
-			// create CSV files for emtrac providers
-			int iCount = LoadEmTracProviderCSV( strJobId );
+			// create CSV files for Company providers
+			int iCount = LoadCompanyProviderCSV( strJobId );
 
 			// close the job after submitting batches
 			string strState = objAPI.RESTSetJobState( strJobId, "Closed" );	// to abort, send "Aborted"
@@ -1142,11 +1142,11 @@ namespace EmTrac2SF
 
 		public void DeleteExistingProviderNotes( List<Contact> objContacts, string strWhere = "" )
 		{
-			string strSOQL = "select Id, ParentId from Note where Title like 'EmTrac Note%' ";
+			string strSOQL = "select Id, ParentId from Note where Title like 'Company Note%' ";
 			if( !strWhere.Equals( "" ) )
 				strSOQL = strSOQL + " " + strWhere;
 
-			// delete existing notes whose Title starts with "EmTrac Note" (only providers have notes like that)
+			// delete existing notes whose Title starts with "Company Note" (only providers have notes like that)
 			List<Note> objExistingNotes = objAPI.Query<Note>( strSOQL );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
@@ -1189,7 +1189,7 @@ namespace EmTrac2SF
 			return;
 		}
 
-		public void BulkLoadMissingEmTracNotes()
+		public void BulkLoadMissingCompanyNotes()
 		{
 			//Batch Load User :  005E0000000hMcK  Fernando:  005E0000000gyNa
 
@@ -1197,12 +1197,12 @@ namespace EmTrac2SF
 			while( true )
 			{
 				List<Contact> objProviders = objAPI.Query<Contact>(
-					"select Id, Name, RecruitingID__c, ( select Id from Notes where Title like 'EmTrac Note%' ) from Contact "
+					"select Id, Name, RecruitingID__c, ( select Id from Notes where Title like 'Company Note%' ) from Contact "
 					+ " where RecruitingID__c > " + strLastRecrId + " order by RecruitingID__c limit 4000" );
 				if( objProviders.Count == 0 )
 					break;
 
-				// get equivalent note rows from EmTrac
+				// get equivalent note rows from Company
 				string strCondition = string.Concat( 
 					" AND p.ID BETWEEN ", objProviders.First().RecruitingID__c.ToString()
 								, " AND ", objProviders.Last().RecruitingID__c.ToString() );
@@ -1220,10 +1220,10 @@ namespace EmTrac2SF
 					if( objQRNotes != null && objQRNotes.size > 0 )
 						continue;
 
-					// find EmTrac equivalent row
+					// find Company equivalent row
 					DataRow[] objRows = objDT.Select( "ParentId = " + objC.RecruitingID__c.ToString() + "" );
 
-					// if no notes in EmTrac, skip it
+					// if no notes in Company, skip it
 					if( objRows.Count() == 0 )
 						continue;
 
@@ -1291,7 +1291,7 @@ namespace EmTrac2SF
 			}
 		}
 
-		public void BulkLoadProviderNotesFromEmTrac()
+		public void BulkLoadProviderNotesFromCompany()
 		{
 			// update only notes after 2011-08-16T19:07:00.000Z
 
@@ -1339,9 +1339,9 @@ namespace EmTrac2SF
 					break;
 				}
 
-				// get existing contacts that came from EmTrac
+				// get existing contacts that came from Company
 				strCondition = string.Concat( " RecruitingID__c > ", strLastRecrId, " " );
-				objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+				objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 					, null, strCondition, " RecruitingID__c limit 4000 " );
 
 				iCount += objDT.Rows.Count;
@@ -1359,7 +1359,7 @@ namespace EmTrac2SF
 				strLastRecrId = objDT.Rows[ objDT.Rows.Count - 1 ][ "ParentID" ].ToString();
 
 				// save CSV file
-				string strFileName = string.Concat( EmTrac2SFUtils.strPath, "ProviderNotes", iIterationNbr.ToString(), ".csv" );
+				string strFileName = string.Concat( Company2SFUtils.strPath, "ProviderNotes", iIterationNbr.ToString(), ".csv" );
 
 				// save new provider contacts in CSV file
 				string strCSVContent = strbCSVData.ToString();
@@ -1418,7 +1418,7 @@ namespace EmTrac2SF
 					dtCreated = (DateTime) objProvider.CreatedDate;
 				else
 					dtCreated = DateTime.Now;
-				objNewNote.Title = string.Concat( "EmTrac Note: ", objProvider.FirstName, " ", objProvider.LastName
+				objNewNote.Title = string.Concat( "Company Note: ", objProvider.FirstName, " ", objProvider.LastName
 							, " on ", dtCreated.ToShortDateString() );
 
 				objNotes.Add( objNewNote );
@@ -1432,7 +1432,7 @@ namespace EmTrac2SF
 			return objNotes;
 		}
 
-		public int LoadEmTracProviderCSV( string strJobId )
+		public int LoadCompanyProviderCSV( string strJobId )
 		{
 			System.Diagnostics.Stopwatch objWatch = new System.Diagnostics.Stopwatch();
 			objWatch.Start();
@@ -1450,7 +1450,7 @@ namespace EmTrac2SF
 			System.Text.RegularExpressions.Regex objRegExPhone = new System.Text.RegularExpressions.Regex(
 						@"([\(]*\d*[\)]*[ .-])*\d*[ .-]\d*([ ]*\w{0,4}[ ]?\d+)?" ); // roughly (1234)-1234-1234 x123
 
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			List<EMSC2SF.Sub_Region__c> objSubRegions = objAPI.Query<EMSC2SF.Sub_Region__c>(
 									"select ID, Name, Recruiting_Manager__c, Sub_Region_Description__c from Sub_Region__c " );
@@ -1460,7 +1460,7 @@ namespace EmTrac2SF
 				return -1;
 			}
 
-			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'EmCare'" );
+			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'CompanyName'" );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
 				lblError.Text = objAPI.ErrorMessage;
@@ -1488,9 +1488,9 @@ namespace EmTrac2SF
 				, "Residency", "Unknown", "Word of Mouth" 
 				, "Advance PA/NP", "Classified Ad", "EM News", "EP Monthly", "IM", "Other", "PA World", "WEM Annals", "ACEP"
 				, "ACOEP", "ACP-ASIM", "AOA", "GSACEP", "NAIP", "Other", "SHM", "ACEP/EMRA", "Advance PA/NP", "CareerBuilder"
-				, "CareerMD", "EDPhysician.com", "EmCare Careers", "FAPA", "GasWork", "HealtheCareers", "hospitalistjobs"
+				, "CareerMD", "EDPhysician.com", "Company Careers", "FAPA", "GasWork", "HealtheCareers", "hospitalistjobs"
 				, "hospitalistworking", "MDJobSite", "NAPR", "Other", "Physicianwork", "PracticeLink", "CareerMD", "EMRA"
-				, "Incentive Eligible", "Incentive Ineligible", "Non-EmCare", "Recruiter" } );
+				, "Incentive Eligible", "Incentive Ineligible", "Non-Company", "Recruiter" } );
 
 			// keywords to replace in lead source
 			string[] strSearchFor = { " journal ", " at hospital ", " career ", " commercial ", " referral-hospital "
@@ -1515,7 +1515,7 @@ namespace EmTrac2SF
 			int iCount = 0, iIterationNbr = 1;
 			bool bKeepLoading = true;
 			string strLastRecrId = "0";
-			List<Contact> objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+			List<Contact> objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 , " Birthdate, Email, Address_Line_1__c, City__c, OtherStreet, OtherCity, HomePhone, MobilePhone, MeNumber__c, Work_Phone__c, SSN__C "
 , " RecruitingID__c > 0 AND ( NOT ( LastName LIKE 'DELETE***%' ) ) ", " LastName, FirstName " );
 			while( bKeepLoading )
@@ -1569,7 +1569,7 @@ namespace EmTrac2SF
 				strLastRecrId = objDT.Rows[ objDT.Rows.Count - 1 ][ "RecruitingID__c" ].ToString();
 
 				// save CSV file
-				string strFileName = string.Concat( EmTrac2SFUtils.strPath, "Provider", iIterationNbr.ToString(), ".csv" );
+				string strFileName = string.Concat( Company2SFUtils.strPath, "Provider", iIterationNbr.ToString(), ".csv" );
 
 				// save new provider contacts in CSV file
 				string strCSVContent = strbCSVData.ToString();
@@ -1656,7 +1656,7 @@ namespace EmTrac2SF
 				}
 
 				// save CSV file
-				//string strFileName = string.Concat( EmTrac2SFUtils.strPath, "AMAJobApp.csv" ); // a million rows - better not save a file
+				//string strFileName = string.Concat( Company2SFUtils.strPath, "AMAJobApp.csv" ); // a million rows - better not save a file
 
 				string strCSVContent = objDT.ToSalesForceCSVString();
 
@@ -1677,7 +1677,7 @@ namespace EmTrac2SF
 			return iIterationNbr - 1;
 		}
 
-		public int CreateEmTracJobAppCSV( string strJobId )
+		public int CreateCompanyJobAppCSV( string strJobId )
 		{
 
 			System.Diagnostics.Stopwatch objWatch = new System.Diagnostics.Stopwatch();
@@ -1685,7 +1685,7 @@ namespace EmTrac2SF
 
 			DataTable objDT = null;
 
-			ReportStatus( DateTime.Now.ToString(), " Starting refresh of Job Application. Loading data from EmTrac.\r\n" );
+			ReportStatus( DateTime.Now.ToString(), " Starting refresh of Job Application. Loading data from Company.\r\n" );
 
 			// get candidate records
 			DataTable objCandidatesDT = objDB.GetDataTableFromSQLFile( "SQLAllCandidates.txt" );
@@ -1829,12 +1829,12 @@ namespace EmTrac2SF
 				objDT.Columns.Remove( "Physician_Number__c" );
 
 				// save CSV file
-				string strFileName = string.Concat( EmTrac2SFUtils.strPath, "JobApp", iIterationNbr.ToString(), ".csv" );
+				string strFileName = string.Concat( Company2SFUtils.strPath, "JobApp", iIterationNbr.ToString(), ".csv" );
 
 				objDT.SaveAsSalesForceCSV( strFileName );
 
 				// load CSV file
-				//string strFileName = string.Concat( EmTrac2SFUtils.strPath, "JobApp1.csv" );
+				//string strFileName = string.Concat( Company2SFUtils.strPath, "JobApp1.csv" );
 				StreamReader objSR = new StreamReader( strFileName );
 				string strCSVContent = objSR.ReadToEnd();
 				objSR.Close();
@@ -1897,8 +1897,8 @@ namespace EmTrac2SF
 				, string[] strSearchFor, string[] strSubstitutions, string strLeadSource )
 		{
 			// normalize the lead source using the substitutions and convert to a standard value
-			string strLeadSource1 = EmTrac2SFUtils.ConvertToStandardValue( objLeadSources, strSearchFor, strSubstitutions, strLeadSource );
-			string strLeadSource2 = EmTrac2SFUtils.ConvertToStandardValue( obj2ndLeadSources, strSearchFor, strSubstitutions, strLeadSource );
+			string strLeadSource1 = Company2SFUtils.ConvertToStandardValue( objLeadSources, strSearchFor, strSubstitutions, strLeadSource );
+			string strLeadSource2 = Company2SFUtils.ConvertToStandardValue( obj2ndLeadSources, strSearchFor, strSubstitutions, strLeadSource );
 
 			switch( strLeadSource1 )
 			{
@@ -1924,7 +1924,7 @@ namespace EmTrac2SF
 					{
 						case "Incentive Eligible":
 						case "Incentive Ineligible":
-						case "Non-EmCare":
+						case "Non-Company":
 						case "Recruiter":
 							strLeadSource1 = "Referral";
 							break;
@@ -1938,7 +1938,7 @@ namespace EmTrac2SF
 						case "Advance PA/NP":
 						case "CareerBuilder":
 						case "EDPhysician.com":
-						case "EmCare Careers":
+						case "Company Careers":
 						case "FAPA":
 						case "GasWork":
 						case "HealtheCareers":
@@ -2018,17 +2018,17 @@ namespace EmTrac2SF
 
 			// retrieve Providers from SalesForce
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Contacts...\r\n" );
-			List<Contact> objProviders = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError,
+			List<Contact> objProviders = Company2SFUtils.GetProvidersFromSF( objAPI, lblError,
 				" Owning_Region__c, Owning_Candidate_Stage__c, Owning_Candidate_Status__c, Birthdate "
 				, null, " RecruitingID__c, Name " );
-			EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objProviders, "Providers", tbStatus );
+			Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objProviders, "Providers", tbStatus );
 
 			// load references
 			if( !bSkipReferences )
 			{
 				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading References...\r\n" );
 				objReferences = RefreshReferences( objProviders );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objReferences, "References", tbStatus );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objReferences, "References", tbStatus );
 			}
 
 			// load agencies and credentials
@@ -2040,7 +2040,7 @@ namespace EmTrac2SF
 				{
 					tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Subtypes...\r\n" );
 					objSubTypes = RefreshSubtypes();
-					EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objSubTypes, "SubTypes", tbStatus );
+					Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objSubTypes, "SubTypes", tbStatus );
 				}
 
 				if( !bSkipAgencies )
@@ -2049,13 +2049,13 @@ namespace EmTrac2SF
 					objAgencies = objAPI.Query<Credential_Agency__c>(
 "Select Id, OwnerId, IsDeleted, Name, CreatedDate, CreatedById, LastModifiedDate, LastModifiedById, SystemModstamp, Address1__c"
 + ", Address2__c, Dept__c, City__c, Zip__c, Phone__c, EXT__c, Fax__c, Contact__c, Title__c, Salutation__c, Credential_Type__c, "
-+ "Code__c, EmTrac_Agency_Match__c, State__c, Search_Exclude__c, State_Licensing_Agency__c, Search_Commonly_Used__c, "
-+ "Metaphone_Address__c, Metaphone_City__c, Metaphone_Name__c from Credential_Agency__c" );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objAgencies, "Agencies", tbStatus );
++ "Code__c, Company_Agency_Match__c, State__c, Search_Exclude__c, State_Licensing_Agency__c, Search_Commonly_Used__c, "
++ "Metaphone_Address__c, Metaphone_City__c, Metaphone_Name__c from TableWithAgenciesGivingCredential" );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objAgencies, "Agencies", tbStatus );
 
 				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Credentials...\r\n" );
 				objCredentials = RefreshCredentials( objProviders, objAgencies, objSubTypes );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objCredentials, "Credentials", tbStatus );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objCredentials, "Credentials", tbStatus );
 			}
 
 			// load institutions and education/experience (and residencies)
@@ -2063,35 +2063,35 @@ namespace EmTrac2SF
 			if( bSkipInstitutions )
 				objInstitutions = objAPI.Query<Institution__c>(
 "Select Id, OwnerId, IsDeleted, Name, CreatedDate, CreatedById, LastModifiedDate, LastModifiedById, SystemModstamp, "
-+ "Address1__c, Address2__c, City__c, Code__c, State__c, Contact__c, Credential_Type__c, Dept__c, EmTrac_Agency_Match__c, "
++ "Address1__c, Address2__c, City__c, Code__c, State__c, Contact__c, Credential_Type__c, Dept__c, Company_Agency_Match__c, "
 + "EXT__c, Fax__c, Phone__c, Salutation__c, Title__c, Zip__c, Provider_Contract__c, Metaphone_Address__c, Metaphone_City__c, "
 + "Metaphone_Name__c, Acuity__c from Institution__c" );
 			else
 				objInstitutions = RefreshInstitutions( objProviders );
-			EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objInstitutions, "Institutions", tbStatus );
+			Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objInstitutions, "Institutions", tbStatus );
 
 			if( !bSkipEducExp )
 			{
 				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Education/Experiences...\r\n" );
 				objEducExp = RefreshEducationExperience( objProviders, objInstitutions );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objEducExp, "Education/Experiences", tbStatus );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objEducExp, "Education/Experiences", tbStatus );
 			}
 
 			// load candidates (it will query facilities by itself)
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Candidates...\r\n" );
 			List<Candidate__c> objCandidates = RefreshCandidates( objProviders );
-			EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objCandidates, "Candidates", tbStatus );
+			Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objCandidates, "Candidates", tbStatus );
 
 			if( !bSkipResidencyCSV )
 			{
 				// load residency data from CSV files
 				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Residency Programs...\r\n" );
 				objResidPrograms = RefreshResidencyPrograms( objInstitutions );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objResidPrograms, "Residency Programs", tbStatus );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objResidPrograms, "Residency Programs", tbStatus );
 
 				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nLoading Residents...\r\n" );
 				objResidents = RefreshResidents( objResidPrograms );
-				EmTrac2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objResidents, "Residents", tbStatus );
+				Company2SFUtils.UpdateStatus( ref strStatus, ref iCount, ref iTotalCount, objResidents, "Residents", tbStatus );
 			}
 
 			TimeSpan tsDuration = DateTime.Now.Subtract( dtLoadBegin );
@@ -2099,7 +2099,7 @@ namespace EmTrac2SF
 			strStatus = string.Concat( strStatus, "\r\n** Records loaded: \t", iTotalCount.ToString() );
 			strStatus = string.Concat( strStatus, "\r\n** Duration: \t", tsDuration.Hours.ToString(), " hours and "
 				, tsDuration.Minutes.ToString(), " minutes" );
-			EmTrac2SFUtils.SaveStatusCSV( strStatus, tbStatus );
+			Company2SFUtils.SaveStatusCSV( strStatus, tbStatus );
 
 			tbStatus.Text = string.Concat( tbStatus.Text, strStatus );
 			bMassDataLoad = false;
@@ -2108,7 +2108,7 @@ namespace EmTrac2SF
 		public void InitializeAccountAndSettings()
 		{
 
-			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'EmCare'" );
+			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'Company'" );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
 				lblError.Text = objAPI.ErrorMessage;
@@ -2118,20 +2118,20 @@ namespace EmTrac2SF
 			if( objAcct == null )
 			{
 				objAcct = new Account();
-				objAcct.Name = "EmCare";
+				objAcct.Name = "Company";
 				SaveResult[] objResults = objAPI.Insert( new Account[] { objAcct } );
 				if( objResults != null )
 					if( objResults[ 0 ].success )
-						tbStatus.Text = string.Concat( tbStatus.Text, "\r\nAccount EmCare added." );
+						tbStatus.Text = string.Concat( tbStatus.Text, "\r\nAccount Company added." );
 					else
 						tbStatus.Text = string.Concat( tbStatus.Text, "\r\nError:  ", objResults[ 0 ].errors[ 0 ].message
 										, " - ", objResults[ 0 ].errors[ 0 ].statusCode );
 			}
 			else
-				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nAccount EmCare already exists!" );
+				tbStatus.Text = string.Concat( tbStatus.Text, "\r\nAccount Company already exists!" );
 
-			List<EmCare_Hub_Settings__c> objSettings = objAPI.Query<EmCare_Hub_Settings__c>(
-				"select Id, Name, Disable_Validation_Rules__c from EmCare_Hub_Settings__c" );
+			List<Company_Hub_Settings__c> objSettings = objAPI.Query<Company_Hub_Settings__c>(
+				"select Id, Name, Disable_Validation_Rules__c from Company_Hub_Settings__c" );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
 				lblError.Text = objAPI.ErrorMessage;
@@ -2148,7 +2148,7 @@ namespace EmTrac2SF
 					return;
 				}
 
-				EmCare_Hub_Settings__c objOrgSettings = new EmCare_Hub_Settings__c();
+				Company_Hub_Settings__c objOrgSettings = new Company_Hub_Settings__c();
 				objOrgSettings.Disable_Validation_Rules__c = false;
 				objOrgSettings.Disable_Validation_Rules__cSpecified = true;
 				objOrgSettings.SetupOwnerId = objOrg.Id;
@@ -2163,7 +2163,7 @@ namespace EmTrac2SF
 					return;
 				}
 
-				EmCare_Hub_Settings__c objUserSettings = new EmCare_Hub_Settings__c();
+				Company_Hub_Settings__c objUserSettings = new Company_Hub_Settings__c();
 				objUserSettings.Disable_Validation_Rules__c = true;
 				objUserSettings.Disable_Validation_Rules__cSpecified = true;
 				objUserSettings.SetupOwnerId = objUser.Id;
@@ -2198,9 +2198,9 @@ namespace EmTrac2SF
 
 		public void UpdateUsersEmail( bool bDisplayOnly = true )
 		{
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError, bForUpdate: true );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError, bForUpdate: true );
 
-			string strEmailList = "gretel@amr.net,tanya.hendrick@emcare.com,benjamin.videtto@emsc.net,karen.thornton@emsc.net,Deeanne.duncan@emcare.com,debra.panneck@emcare.com,Heidi.wilson@emcare.com,murphy.smith@emcare.com,Jennifer.strouse@emcare.com,craig.bleiler@emcare.com,melissa.sanko@emcare.com,jennifer_korando@emcare.com,Deborah_Alvaro@emcare.com,Ody_Pierre-Louis@emcare.com,Julie.Burger@emcare.com,Christie_Smith@emcare.com,Jeannie.Mckinney@emcare.com,Catherine.Tran@emcare.com,Terri.Harper@emcare.com,Ronald.Jackson@emcare.com,Christina.Plain@emcare.com,Jackie.Foster@emcare.com,Rebecca.McMullen@emcare.com,Jamie_Weaver@emcare.com,jeff.higgins@anesthesiacarenow.com,greg.burel@anesthesiacarenow.com,Shannon.smith2@anesthesiacarenow.com,Bridget.Baker@anesthesiacarenow.com";
+			string strEmailList = "jane.doe@Company.com,john.doe@Company.com";
 			strEmailList = strEmailList.ToLower();
 
 			List<EMSC2SF.User> objUsersToUpdate	= new List<User>();
@@ -2230,7 +2230,7 @@ namespace EmTrac2SF
 				objUsersResults = objAPI.Upsert( "Id", objUsersToUpdate.ToArray<sObject>() );
 
 			// create CSV file / set the Ids in the list of users
-			EmTrac2SFUtils.SetIdsReportErrors( objUsersToUpdate, objUsersResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objUsersToUpdate, objUsersResults, tbStatus );
 
 			return;
 		}
@@ -2246,13 +2246,13 @@ namespace EmTrac2SF
 
 			// retrieve SalesForce provider records to perform duplicate detection during the loop
 			// (only retrieve non-AMA records)
-			List<Contact> objExistingContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+			List<Contact> objExistingContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 					, " HomePhone, Birthdate, OtherStreet, Address_Line_1__c, MeNumber__c "
 					, " AMAOnly__c <> '1' " );
 
 			ReportStatus( objExistingContacts.Count.ToString(), " AMA provider rows retrieved.\r\n" );
 
-			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'EmCare'" );
+			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'Company'" );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
 				lblError.Text = objAPI.ErrorMessage;
@@ -2279,7 +2279,7 @@ namespace EmTrac2SF
 				ReportStatus( "Loading next batch of AMA providers with MeNumber > ", strLastMeNumber );
 
 				string strCondition = string.Concat(
-							" AND p.EMSCUpdateDate > '", strLastAMADt, "' AND p.MeNumber > '", strLastMeNumber, "' " );
+							" AND p.CompanyUpdateDate > '", strLastAMADt, "' AND p.MeNumber > '", strLastMeNumber, "' " );
 				objDT = objDB.GetDataTableFromSQLFile( "SQL_AMA_Providers.txt", null, strCondition );
 
 				if( !objDB.ErrorMessage.Equals( "" ) )
@@ -2332,7 +2332,7 @@ namespace EmTrac2SF
 								, " - MeNumber = ", objNewContact.MeNumber__c
 								, " (duplicate RecrID ", objContactFound.RecruitingID__c.ToString(), ")" );
 
-						// keep the 1st record entered or the EmTrac record and skip this one
+						// keep the 1st record entered or the Company record and skip this one
 						continue;
 					}
 
@@ -2348,7 +2348,7 @@ namespace EmTrac2SF
 					objNewContact.Metaphone_City__c = objNewContact.City__c.ToNormalizedMetaphone();
 
 					// fix time zone bug
-					objNewContact.Birthdate = EmTrac2SFUtils.FixTimeZoneBug( objNewContact.Birthdate );
+					objNewContact.Birthdate = Company2SFUtils.FixTimeZoneBug( objNewContact.Birthdate );
 
 					// for some reason, this is required for the upsert to work
 					objNewContact.RecruitingID__cSpecified = true;
@@ -2373,7 +2373,7 @@ namespace EmTrac2SF
 				if( !bDisplayOnly )
 					objResults = objAPI.Upsert( "MeNumber__c", objContacts.ToArray<sObject>() );
 
-				EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objContacts );
+				Company2SFUtils.ReportErrorsToHistoryFile( objResults, objContacts );
 			}
 
 			ReportStatus( iCount.ToString(), " Total AMA provider rows loaded. \r\n" );
@@ -2419,7 +2419,7 @@ namespace EmTrac2SF
 
 			// load institutions list
 			List<Institution__c> objInstitutions = objAPI.Query<Institution__c>(
-"select Id, Name, EmTrac_Agency_Match__c, City__c, Metaphone_Name__c, Metaphone_City__c from Institution__c where Metaphone_City__c != null and Metaphone_Name__c != null order by Metaphone_City__c, Metaphone_Name__c" );
+"select Id, Name, Company_Agency_Match__c, City__c, Metaphone_Name__c, Metaphone_City__c from Institution__c where Metaphone_City__c != null and Metaphone_Name__c != null order by Metaphone_City__c, Metaphone_Name__c" );
 
 			ReportStatus( "Loaded ", objInstitutions.Count.ToString(), " institutions." );
 
@@ -2435,12 +2435,12 @@ namespace EmTrac2SF
 				ReportStatus( "Loading next batch of AMA providers with MeNumber > ", strLastMeNumber );
 
 				string strCondition = string.Concat(
-							" AND p.EMSCUpdateDate > '", strLastAMADt, "' AND p.MeNumber > '", strLastMeNumber, "' " );
+							" AND p.CompanyUpdateDate > '", strLastAMADt, "' AND p.MeNumber > '", strLastMeNumber, "' " );
 				objDT = objDB.GetDataTableFromSQLFile( "SQL_AMA_Provider_Credentials.txt", null, strCondition );
 
 				//strCondition = string.Concat(
 				//            " AMAOnly__c = '1' AND MeNumber__c > '", strLastMeNumber, "' " );
-				//List<Contact> objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError, "MeNumber__c"
+				//List<Contact> objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError, "MeNumber__c"
 				//                , strCondition, " MeNumber__c limit 10000 " );	// not sure this will bring the right records
 
 				if( !objDB.ErrorMessage.Equals( "" ) )
@@ -2565,14 +2565,14 @@ namespace EmTrac2SF
 						DateTime dtValue = new DateTime( Convert.ToInt16( objDR[ "GraduationFromYear" ] ), 1, 1 );
 						objNewEducation.From__c = dtValue;
 						// fix time zone bug
-						objNewEducation.From__c = EmTrac2SFUtils.FixTimeZoneBug( objNewEducation.From__c );
+						objNewEducation.From__c = Company2SFUtils.FixTimeZoneBug( objNewEducation.From__c );
 					}
 					if( !Convert.IsDBNull( objDR[ "GraduationToYear" ] ) )
 					{
 						DateTime dtValue = new DateTime( Convert.ToInt16( objDR[ "GraduationToYear" ] ), 1, 1 );
 						objNewEducation.To__c = dtValue;
 						// fix time zone bug
-						objNewEducation.To__c = EmTrac2SFUtils.FixTimeZoneBug( objNewEducation.To__c );
+						objNewEducation.To__c = Company2SFUtils.FixTimeZoneBug( objNewEducation.To__c );
 					}
 
 					objNewEducation.Name = string.Concat( strFirstName, " ", strLastName
@@ -2597,12 +2597,12 @@ namespace EmTrac2SF
 				{
 					objResults = objAPI.Upsert( "Name", objEducations.ToArray<sObject>() );
 
-					EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objEducations );
+					Company2SFUtils.ReportErrorsToHistoryFile( objResults, objEducations );
 
 					objResults = null;
 					objResults = objAPI.Upsert( "Name", objCredentials.ToArray<sObject>() );
 
-					EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objCredentials );
+					Company2SFUtils.ReportErrorsToHistoryFile( objResults, objCredentials );
 				}
 			}
 
@@ -2682,7 +2682,7 @@ namespace EmTrac2SF
 			System.Text.RegularExpressions.Regex objRegExPhone = new System.Text.RegularExpressions.Regex(
 						@"([\(]*\d*[\)]*[ .-])*\d*[ .-]\d*([ ]*\w{0,4}[ ]?\d+)?" ); // roughly (1234)-1234-1234 x123
 
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			List<EMSC2SF.Sub_Region__c> objSubRegions = objAPI.Query<EMSC2SF.Sub_Region__c>(
 									"select ID, Name, Recruiting_Manager__c, Sub_Region_Description__c from Sub_Region__c " );
@@ -2692,7 +2692,7 @@ namespace EmTrac2SF
 				return null;
 			}
 
-			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'EmCare'" );
+			Account objAcct = objAPI.QuerySingle<Account>( "select Id, Name from Account where Name = 'Company'" );
 			if( !objAPI.ErrorMessage.Equals( "" ) )
 			{
 				lblError.Text = objAPI.ErrorMessage;
@@ -2720,9 +2720,9 @@ namespace EmTrac2SF
 				, "Residency", "Unknown", "Word of Mouth" 
 				, "Advance PA/NP", "Classified Ad", "EM News", "EP Monthly", "IM", "Other", "PA World", "WEM Annals", "ACEP"
 				, "ACOEP", "ACP-ASIM", "AOA", "GSACEP", "NAIP", "Other", "SHM", "ACEP/EMRA", "Advance PA/NP", "CareerBuilder"
-				, "CareerMD", "EDPhysician.com", "EmCare Careers", "FAPA", "GasWork", "HealtheCareers", "hospitalistjobs"
+				, "CareerMD", "EDPhysician.com", "Company Careers", "FAPA", "GasWork", "HealtheCareers", "hospitalistjobs"
 				, "hospitalistworking", "MDJobSite", "NAPR", "Other", "Physicianwork", "PracticeLink", "CareerMD", "EMRA"
-				, "Incentive Eligible", "Incentive Ineligible", "Non-EmCare", "Recruiter" } );
+				, "Incentive Eligible", "Incentive Ineligible", "Non-Company", "Recruiter" } );
 
 			// keywords to replace in lead source
 			string[] strSearchFor = { " journal ", " at hospital ", " career ", " commercial ", " referral-hospital "
@@ -2750,14 +2750,14 @@ namespace EmTrac2SF
 			if( !bDisplayOnly )
 				objResults = objAPI.Upsert( "RecruitingID__c", objContacts.ToArray<sObject>() );
 
-			EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objContacts );
+			Company2SFUtils.ReportErrorsToHistoryFile( objResults, objContacts );
 
 			ReportStatus( objContacts.Count.ToString(), " Total providers loaded. \r\n" );
 
 			//ReportStatus( "Reporting errors for contacts" );
 
 			//// create CSV file / set the Ids in the list of facilities
-			//EmTrac2SFUtils.SetIdsReportErrors( objContacts, objResults, tbStatus );
+			//Company2SFUtils.SetIdsReportErrors( objContacts, objResults, tbStatus );
 			objResults = null;
 
 			// populate the Provider record name (because it is read only for Contacts and we don't get it in UpsertResults)
@@ -2796,8 +2796,8 @@ namespace EmTrac2SF
 			if( objMatchZip.Count > 0 )
 				objNewContact.Zipcode__c = objMatchZip[ 0 ].Value;
 
-			objNewContact.Zipcode__c = EmTrac2SFUtils.ValidatePostalCode( objNewContact.Zipcode__c );
-			objNewContact.OtherPostalCode = EmTrac2SFUtils.ValidatePostalCode( objNewContact.OtherPostalCode );
+			objNewContact.Zipcode__c = Company2SFUtils.ValidatePostalCode( objNewContact.Zipcode__c );
+			objNewContact.OtherPostalCode = Company2SFUtils.ValidatePostalCode( objNewContact.OtherPostalCode );
 
 			// validate ssn
 			if( objNewContact.SSN__c != null && objNewContact.SSN__c.Length != 9 )
@@ -2818,11 +2818,11 @@ namespace EmTrac2SF
 				objNewContact.Email = "";
 
 			// validate phones
-			objNewContact.HomePhone = EmTrac2SFUtils.ValidPhone( objRegExPhone, objNewContact.HomePhone );
-			objNewContact.OtherPhone = EmTrac2SFUtils.ValidPhone( objRegExPhone, objNewContact.OtherPhone );
-			objNewContact.Work_Phone__c = EmTrac2SFUtils.ValidPhone( objRegExPhone, objNewContact.Work_Phone__c );
-			objNewContact.MobilePhone = EmTrac2SFUtils.ValidPhone( objRegExPhone, objNewContact.MobilePhone );
-			objNewContact.Fax = EmTrac2SFUtils.ValidPhone( objRegExPhone, objNewContact.Fax );
+			objNewContact.HomePhone = Company2SFUtils.ValidPhone( objRegExPhone, objNewContact.HomePhone );
+			objNewContact.OtherPhone = Company2SFUtils.ValidPhone( objRegExPhone, objNewContact.OtherPhone );
+			objNewContact.Work_Phone__c = Company2SFUtils.ValidPhone( objRegExPhone, objNewContact.Work_Phone__c );
+			objNewContact.MobilePhone = Company2SFUtils.ValidPhone( objRegExPhone, objNewContact.MobilePhone );
+			objNewContact.Fax = Company2SFUtils.ValidPhone( objRegExPhone, objNewContact.Fax );
 
 			// set the owning region using appointments, if blank, use the region in the provider's record
 			string strOwningRegion = objDR[ "Default_Owning_Region" ].ToString();
@@ -2866,7 +2866,7 @@ namespace EmTrac2SF
 			objNewContact.Owning_Region__c = strOwningRegion;
 
 			// convert specialty
-			objNewContact.Specialty__c = EmTrac2SFUtils.ConvertToStandardValue( objSpecialties, strSpecialtySearchFor, strSpecialtySubstitutions
+			objNewContact.Specialty__c = Company2SFUtils.ConvertToStandardValue( objSpecialties, strSpecialtySearchFor, strSpecialtySubstitutions
 				, objNewContact.Specialty__c );
 
 			// convert lead source
@@ -2880,8 +2880,8 @@ namespace EmTrac2SF
 			{
 				string strRecruiter = objDR[ "Recruiter" ].ToString();
 				EMSC2SF.User objFound = objExistingUsers.FirstOrDefault(
-							u => u.EmTrac_Usercode__c != null
-								&& u.EmTrac_Usercode__c.Equals( strRecruiter )
+							u => u.Company_Usercode__c != null
+								&& u.Company_Usercode__c.Equals( strRecruiter )
 								&& u.IsActive == true );
 				if( objFound != null )
 					objNewContact.OwnerId = objFound.Id;
@@ -2905,9 +2905,9 @@ namespace EmTrac2SF
 			}
 
 			// fix time zone bug
-			objNewContact.Birthdate = EmTrac2SFUtils.FixTimeZoneBug( objNewContact.Birthdate );
+			objNewContact.Birthdate = Company2SFUtils.FixTimeZoneBug( objNewContact.Birthdate );
 			objNewContact.Drivers_License_Expiration_Date__c =
-				EmTrac2SFUtils.FixTimeZoneBug( objNewContact.Drivers_License_Expiration_Date__c );
+				Company2SFUtils.FixTimeZoneBug( objNewContact.Drivers_License_Expiration_Date__c );
 
 			// for some reason, this is required for the upsert to work
 			objNewContact.RecruitingID__cSpecified = true;
@@ -3000,18 +3000,18 @@ namespace EmTrac2SF
 			if( objContacts == null )
 			{
 				// need Id, Name, FirstName, LastName, RecruitingID__c (default) and CreatedDate
-				objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError, "CreatedDate" );
+				objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError, "CreatedDate" );
 			}
 
 			// refresh the notes/comments for each provider
 			DataTable objDT = null;
 			if( objContacts != null )
-				objDT = objDB.GetDataTableFromSQLFile( "SQLProviderNotes.txt", EmTrac2SFUtils.CreateProviderScript( objContacts ) );
+				objDT = objDB.GetDataTableFromSQLFile( "SQLProviderNotes.txt", Company2SFUtils.CreateProviderScript( objContacts ) );
 			else
 				if( bImportAllRecords )
 					objDT = objDB.GetDataTableFromSQLFile( "SQLAllProvidersNotes.txt" );
 				else
-					objDT = objDB.GetDataTableFromSQLFile( "SQLProviderNotes.txt", EmTrac2SFUtils.CreateProviderScript( objContacts ) );
+					objDT = objDB.GetDataTableFromSQLFile( "SQLProviderNotes.txt", Company2SFUtils.CreateProviderScript( objContacts ) );
 
 			ReportStatus( "\r\n", objDT.Rows.Count.ToString(), " provider comment rows retrieved.\r\n" );
 
@@ -3025,10 +3025,10 @@ namespace EmTrac2SF
 
 			ReportStatus( "Reporting errors for contact notes" );
 
-			EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objNotes );
+			Company2SFUtils.ReportErrorsToHistoryFile( objResults, objNotes );
 
 			//// create CSV file / set the Ids in the list of facilities
-			//EmTrac2SFUtils.SetIdsReportErrors( objNotes, objResults, tbStatus );
+			//Company2SFUtils.SetIdsReportErrors( objNotes, objResults, tbStatus );
 			//objResults = null;
 
 			ReportStatus( objNotes.Count.ToString(), " Total provider notes loaded. \r\n" );
@@ -3054,7 +3054,7 @@ namespace EmTrac2SF
 			//ReportStatus(objDivisionResults);
 
 			// create CSV file / set the Ids in the list of facilities
-			EmTrac2SFUtils.SetIdsReportErrors( objDivisions, objDivisionResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objDivisions, objDivisionResults, tbStatus );
 
 			List<Region__c> objRegions = new List<Region__c>();
 
@@ -3080,11 +3080,11 @@ namespace EmTrac2SF
 			//ReportStatus(objRegionResults);
 
 			// create CSV file / set the Ids in the list of facilities
-			EmTrac2SFUtils.SetIdsReportErrors( objRegions, objRegionResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objRegions, objRegionResults, tbStatus );
 
 			List<Sub_Region__c> objSub_Regions = new List<Sub_Region__c>();
 
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			// read regions from CSV file
 			strFileName = string.Concat( strAppPath, "CSV_SubRegions.csv" );
@@ -3116,7 +3116,7 @@ namespace EmTrac2SF
 			//ReportStatus(objSub_RegionResults);
 
 			// create CSV file / set the Ids in the list of facilities
-			EmTrac2SFUtils.SetIdsReportErrors( objSub_Regions, objSub_RegionResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objSub_Regions, objSub_RegionResults, tbStatus );
 
 			return objSub_Regions;
 		}
@@ -3157,7 +3157,7 @@ namespace EmTrac2SF
 			string strRadiologyType = objRecTypes.FirstOrDefault<RecordType>( i => i.Name == "Radiology" ).Id;
 
 			// get users list
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			ReportStatus( objExistingUsers.Count.ToString(), " SF users retrieved.\r\n" );
 
@@ -3226,20 +3226,20 @@ namespace EmTrac2SF
 					objNewFacility.Scheduler_MLP__c = objUserHospital[ 0 ][ "SchedulerMLP" ].ToString();
 
 					// populate email addresses
-					objNewFacility.Recruiter_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "RecruiterEmail" ].ToString() );
-					objNewFacility.Recruiter_Backup_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "RecruiterBackupEmail" ].ToString() );
-					objNewFacility.Credentialer_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "CredentialerEmail" ].ToString() );
-					objNewFacility.Credentialer_Backup_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "CredentialerBackupEmail" ].ToString() );
-					objNewFacility.Scheduler_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "SchedulerEmail" ].ToString() );
-					objNewFacility.Scheduler_MLP_Email__c = EmTrac2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "SchedulerMLPEmail" ].ToString() );
+					objNewFacility.Recruiter_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "RecruiterEmail" ].ToString() );
+					objNewFacility.Recruiter_Backup_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "RecruiterBackupEmail" ].ToString() );
+					objNewFacility.Credentialer_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "CredentialerEmail" ].ToString() );
+					objNewFacility.Credentialer_Backup_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "CredentialerBackupEmail" ].ToString() );
+					objNewFacility.Scheduler_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "SchedulerEmail" ].ToString() );
+					objNewFacility.Scheduler_MLP_Email__c = Company2SFUtils.FilterValidEmail( objUserHospital[ 0 ][ "SchedulerMLPEmail" ].ToString() );
 
 					// convert user names into User ids
-					objNewFacility.Recruiter__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Recruiter__c );
-					objNewFacility.Recruiter_Backup__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Recruiter_Backup__c );
-					objNewFacility.Credentialer__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Credentialer__c );
-					objNewFacility.Credentialer_Backup__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Credentialer_Backup__c );
-					objNewFacility.Scheduler__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Scheduler__c );
-					objNewFacility.Scheduler_MLP__c = EmTrac2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Scheduler_MLP__c );
+					objNewFacility.Recruiter__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Recruiter__c );
+					objNewFacility.Recruiter_Backup__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Recruiter_Backup__c );
+					objNewFacility.Credentialer__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Credentialer__c );
+					objNewFacility.Credentialer_Backup__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Credentialer_Backup__c );
+					objNewFacility.Scheduler__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Scheduler__c );
+					objNewFacility.Scheduler_MLP__c = Company2SFUtils.ConvertToUserId( tbStatus, objExistingUsers, objNewFacility.Scheduler_MLP__c );
 
 					// default MLP scheduler to the physician scheduler if omitted
 					if( objNewFacility.Scheduler_MLP__c.IsNullOrBlank() )
@@ -3279,8 +3279,8 @@ namespace EmTrac2SF
 				objNewFacility.Metaphone_City__c = objNewFacility.City__c.ToNormalizedMetaphone();
 
 				// fix time zone bug
-				objNewFacility.Contract_Start_Date__c = EmTrac2SFUtils.FixTimeZoneBug( objNewFacility.Contract_Start_Date__c );
-				objNewFacility.Contract_End_Date__c = EmTrac2SFUtils.FixTimeZoneBug( objNewFacility.Contract_End_Date__c );
+				objNewFacility.Contract_Start_Date__c = Company2SFUtils.FixTimeZoneBug( objNewFacility.Contract_Start_Date__c );
+				objNewFacility.Contract_End_Date__c = Company2SFUtils.FixTimeZoneBug( objNewFacility.Contract_End_Date__c );
 
 				// set flags for contract dates
 				objNewFacility.Contract_Start_Date__cSpecified = ( objNewFacility.Contract_Start_Date__c != null );
@@ -3318,10 +3318,10 @@ namespace EmTrac2SF
 			if( !bDisplayOnly )
 				objResults = objAPI.Upsert( "Site_Code__c", objFacilities.ToArray<sObject>() );
 
-			EmTrac2SFUtils.ReportErrorsToHistoryFile( objResults, objFacilities );
+			Company2SFUtils.ReportErrorsToHistoryFile( objResults, objFacilities );
 
 			//// create CSV file / set the Ids in the list of facilities
-			//EmTrac2SFUtils.SetIdsReportErrors( objFacilities, objResults, tbStatus );
+			//Company2SFUtils.SetIdsReportErrors( objFacilities, objResults, tbStatus );
 
 			//ShowData(objFacility);
 
@@ -3339,7 +3339,7 @@ namespace EmTrac2SF
 		{
 			DataTable objDT = null;
 			if( objProviders != null )
-				objDT = objDB.GetDataTableFromSQLFile( "SQLInstitution.txt", EmTrac2SFUtils.CreateProviderScript( objProviders ) );
+				objDT = objDB.GetDataTableFromSQLFile( "SQLInstitution.txt", Company2SFUtils.CreateProviderScript( objProviders ) );
 			else
 				objDT = objDB.GetDataTableFromSQLFile( "SQLAllInstitutions.txt" );
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n", objDT.Rows.Count, " institution rows retrieved.\r\n" );
@@ -3351,7 +3351,7 @@ namespace EmTrac2SF
 			}
 
 			// add copy of main column to the table to help with duplicate detection
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDT );
+			Company2SFUtils.FlagDupesByAddressCityName( objDT );
 
 			// load agencies from datatable to agency list
 			List<Institution__c> objInstitutions = new List<Institution__c>( objDT.Rows.Count );
@@ -3385,11 +3385,11 @@ namespace EmTrac2SF
 
 			UpsertResult[] objResults = null;
 			if( !bDisplayOnly )
-				objResults = objAPI.Upsert( "EmTrac_Agency_Match__c", objInstitutions.ToArray<sObject>() );
+				objResults = objAPI.Upsert( "Company_Agency_Match__c", objInstitutions.ToArray<sObject>() );
 			//ReportStatus(objResults);
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objInstitutions, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objInstitutions, objResults, tbStatus );
 
 			//ShowData(objInstitutions);
 
@@ -3400,7 +3400,7 @@ namespace EmTrac2SF
 		{
 			DataTable objDT = null;
 			if( objProviders != null )
-				objDT = objDB.GetDataTableFromSQLFile( "SQLAgency.txt", EmTrac2SFUtils.CreateProviderScript( objProviders ) );
+				objDT = objDB.GetDataTableFromSQLFile( "SQLAgency.txt", Company2SFUtils.CreateProviderScript( objProviders ) );
 			else
 				objDT = objDB.GetDataTableFromSQLFile( "SQLAllAgencies.txt" );
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n", objDT.Rows.Count, " agency rows retrieved.\r\n" );
@@ -3414,13 +3414,13 @@ namespace EmTrac2SF
 			// add copy of main column to the table to help with duplicate detection
 			//CreateMatchColumn( objDT, "OriginalName", true );
 
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDT );
+			Company2SFUtils.FlagDupesByAddressCityName( objDT );
 
-			// add agencies not in Emtrac
+			// add agencies not in Company
 			List<Credential_Agency__c> objAgencies = new List<Credential_Agency__c>( objDT.Rows.Count );
-			string strFileName = string.Concat( strAppPath, "CSV_AgenciesNotInEmtrac.csv" );
+			string strFileName = string.Concat( strAppPath, "CSV_AgenciesNotInCompanyApp.csv" );
 			objAgencies.ReadFile( strFileName, "Code__c,Name,State_Licensing_Agency__c,Address1__c,Address2__c,City__c,State__c,"
-+ "Zip__c,Phone__c,Ext__c,Fax__c,Contact__c,Title__c,Salutation__c,Credential_Type__c,EmTrac_Agency_Match__c"
++ "Zip__c,Phone__c,Ext__c,Fax__c,Contact__c,Title__c,Salutation__c,Credential_Type__c,Company_Agency_Match__c"
 							, true );
 
 			// load agencies from datatable to agency list
@@ -3454,11 +3454,11 @@ namespace EmTrac2SF
 
 			UpsertResult[] objResults = null;
 			if( !bDisplayOnly )
-				objResults = objAPI.Upsert( "EmTrac_Agency_Match__c", objAgencies.ToArray<sObject>() );
+				objResults = objAPI.Upsert( "Company_Agency_Match__c", objAgencies.ToArray<sObject>() );
 			//ReportStatus(objResults);
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objAgencies, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objAgencies, objResults, tbStatus );
 
 			//ShowData(objAgencies);
 
@@ -3477,7 +3477,7 @@ namespace EmTrac2SF
 			}
 
 			// add copy of main column to the table to help with duplicate detection
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDT );
+			Company2SFUtils.FlagDupesByAddressCityName( objDT );
 			//CreateMatchColumn( objDT, "OriginalName,Address1__c", true, true );
 
 			// create header row
@@ -3494,7 +3494,7 @@ namespace EmTrac2SF
 				{
 					// report duplicates
 					tbStatus.Text = string.Concat( tbStatus.Text, "\r\n"
-							, objDR[ "EmTrac_Agency_Match__c" ]
+							, objDR[ "Company_Agency_Match__c" ]
 							, "\t", objDR[ "OriginalName" ]
 							, "\t", objDR[ "Address1__c" ]
 							, "\t", objDR[ "City__c" ]
@@ -3505,7 +3505,7 @@ namespace EmTrac2SF
 					//tbStatus.Text = string.Concat( tbStatus.Text, "\r\n", objDR[ "OriginalName" ]
 					//        , "\t", objDR[ "ModifiedName" ]
 					//        , "\t", objDR[ "MatchOriginalName" ]
-					//        , "\t", objDR[ "EmTrac_Agency_Match__c" ]
+					//        , "\t", objDR[ "Company_Agency_Match__c" ]
 					//        , "\t", objDR[ "DuplicateOfCode" ]
 					//        , "\t", objDR[ "DuplicateOfName" ] );
 					continue;
@@ -3523,7 +3523,7 @@ namespace EmTrac2SF
 			}
 
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n\r\nNON-DUPLICATE AGENCIES:\r\n" );
-			EmTrac2SFUtils.SetIdsReportErrors( objNonDuplicateAgencies, null, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objNonDuplicateAgencies, null, tbStatus );
 
 			//// match by address now
 			//tbStatus.Text = string.Concat( tbStatus.Text, "\r\n\r\nDUPLICATE ADDRESSES:\r\n" );
@@ -3544,7 +3544,7 @@ namespace EmTrac2SF
 			//        tbStatus.Text = string.Concat( tbStatus.Text, "\r\n", objDR[ "OriginalName" ]
 			//                , "\t", objDR[ "Address1__c" ]
 			//                , "\t", objDR[ "MatchOriginalName" ]
-			//                , "\t", objDR[ "EmTrac_Agency_Match__c" ]
+			//                , "\t", objDR[ "Company_Agency_Match__c" ]
 			//                , "\t", objDR[ "DuplicateOfCode" ]
 			//                , "\t", objDR[ "DuplicateOfName" ]
 			//                , "\t", ((DataRow) objDR[ "DuplicateOfRowNumber" ] )[ "Address1__c" ] );
@@ -3564,7 +3564,7 @@ namespace EmTrac2SF
 			}
 
 			// add copy of main column to the table to help with duplicate detection
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDT );
+			Company2SFUtils.FlagDupesByAddressCityName( objDT );
 			//CreateMatchColumn( objDT, "OriginalName,Address1__c", true, true );
 
 			// create header row
@@ -3581,7 +3581,7 @@ namespace EmTrac2SF
 				{
 					// report duplicates
 					tbStatus.Text = string.Concat( tbStatus.Text, "\r\n"
-							, objDR[ "EmTrac_Agency_Match__c" ]
+							, objDR[ "Company_Agency_Match__c" ]
 							, "\t", objDR[ "OriginalName" ]
 							, "\t", objDR[ "Address1__c" ]
 							, "\t", objDR[ "City__c" ]
@@ -3604,7 +3604,7 @@ namespace EmTrac2SF
 			}
 
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n\r\nNON-DUPLICATE INSTITUTIONS:\r\n" );
-			EmTrac2SFUtils.SetIdsReportErrors( objNonDuplicateInstitutions, null, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objNonDuplicateInstitutions, null, tbStatus );
 
 			return objNonDuplicateInstitutions;
 		}
@@ -3651,11 +3651,11 @@ namespace EmTrac2SF
 
 			UpsertResult[] objResults = null;
 			if( !bDisplayOnly )
-				objResults = objAPI.Upsert( "EmTrac_SubType_Match__c", objSubTypes.ToArray<sObject>() );
+				objResults = objAPI.Upsert( "Company_SubType_Match__c", objSubTypes.ToArray<sObject>() );
 			//ReportStatus(objResults);
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objSubTypes, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objSubTypes, objResults, tbStatus );
 
 			//ShowData(objSubTypes);
 
@@ -3674,7 +3674,7 @@ namespace EmTrac2SF
 				if( bMassDataLoad )
 					objDT = objDB.GetDataTableFromSQLFile( "SQLAllCredentials.txt" );
 				else
-					objDT = objDB.GetDataTableFromSQLFile( "SQLCredential.txt", EmTrac2SFUtils.CreateProviderScript( objProviders ) );
+					objDT = objDB.GetDataTableFromSQLFile( "SQLCredential.txt", Company2SFUtils.CreateProviderScript( objProviders ) );
 			}
 			else
 				objDT = objDB.GetDataTableFromSQLFile( "SQLAllCredentials.txt" );
@@ -3691,25 +3691,25 @@ namespace EmTrac2SF
 			if( objProviders != null )
 				objContacts = objProviders;
 			else
-				objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError, "", " PhysicianNumber__c > 0 " );
+				objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError, "", " PhysicianNumber__c > 0 " );
 
 			//// get list of subtypes if needed
 			//if (objSubTypes == null)
 			//    objSubTypes = objAPI.Query<Credential_Subtype__c>(
-			//        "select ID, EmTrac_SubType_Match__c from Credential_Subtype__c ORDER BY EmTrac_SubType_Match__c");
+			//        "select ID, Company_SubType_Match__c from Credential_Subtype__c ORDER BY Company_SubType_Match__c");
 
 			// get list of agencies if needed
 			if( objAgencies == null )
 				objAgencies = objAPI.Query<Credential_Agency__c>(
-					"select ID, EmTrac_Agency_Match__c from Credential_Agency__c ORDER BY EmTrac_Agency_Match__c " );
+					"select ID, Company_Agency_Match__c from Credential_Agency__c ORDER BY Company_Agency_Match__c " );
 
 			// get record types and the ids for Education and Experience
 			List<RecordType> objRecTypes = objAPI.Query<RecordType>( "select Id, Name from RecordType" );
 
-			// get list of agencies from EmTrac free from duplicates
+			// get list of agencies from Company free from duplicates
 			DataTable objDTAgencies = objDB.GetDataTableFromSQLFile( "SQLAllAgencies.txt" );
 
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDTAgencies );
+			Company2SFUtils.FlagDupesByAddressCityName( objDTAgencies );
 
 			// create a sorted list to help avoid duplicate names
 			SortedSet<string> objNames = new SortedSet<string>();
@@ -3726,31 +3726,31 @@ namespace EmTrac2SF
 
 				// convert agency code into lookup id
 				string strAgencyCode = objNewCredential.Credential_Agency__c;
-				objNewCredential.Credential_Agency__c = EmTrac2SFUtils.ConvertToAgencyId( objAgencies, strAgencyCode );
+				objNewCredential.Credential_Agency__c = Company2SFUtils.ConvertToAgencyId( objAgencies, strAgencyCode );
 
 				// if agency code could not be converted into lookup id, this is a possible duplicate
 				// so we attempt to find the related unique code
 				if( objNewCredential.Credential_Agency__c.IsNullOrBlank() )
 				{
 					DataRow[] objFound = objDTAgencies.Select(
-								string.Concat( "EmTrac_Agency_Match__c = '", strAgencyCode, "'" ) );
+								string.Concat( "Company_Agency_Match__c = '", strAgencyCode, "'" ) );
 					if( objFound.Count() > 0 )
 						// attempt again to convert agency code into lookup id
-						objNewCredential.Credential_Agency__c = EmTrac2SFUtils.ConvertToAgencyId( objAgencies
+						objNewCredential.Credential_Agency__c = Company2SFUtils.ConvertToAgencyId( objAgencies
 											, objFound[ 0 ][ "DuplicateOfCode" ].ToString() );
 				}
 
 				// convert subtype code into lookup id
 				string strSubTypeCode = objNewCredential.Credential_Sub_Type__c;
 				//string strSubTypeId = "";
-				//Credential_Subtype__c objFoundSubType = objSubTypes.FirstOrDefault( i => i.EmTrac_SubType_Match__c == strSubTypeCode );
+				//Credential_Subtype__c objFoundSubType = objSubTypes.FirstOrDefault( i => i.Company_SubType_Match__c == strSubTypeCode );
 				//if (objFoundSubType != null)
 				//    strSubTypeId = objFoundSubType.Id;
 				//objNewCredential.Credential_Sub_Type__c = strSubTypeId;
 
 				// set sub type without having to find sub type object
 				Credential_Subtype__c objSubType = new Credential_Subtype__c();
-				objSubType.EmTrac_SubType_Match__c = strSubTypeCode;
+				objSubType.Company_SubType_Match__c = strSubTypeCode;
 				objNewCredential.Credential_Sub_Type__r = objSubType;
 				objNewCredential.Credential_Sub_Type__c = "";
 
@@ -3844,8 +3844,8 @@ namespace EmTrac2SF
 				}
 
 				// fix time zone bug
-				objNewCredential.From__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCredential.From__c );
-				objNewCredential.To__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCredential.To__c );
+				objNewCredential.From__c = Company2SFUtils.FixTimeZoneBug( objNewCredential.From__c );
+				objNewCredential.To__c = Company2SFUtils.FixTimeZoneBug( objNewCredential.To__c );
 
 				// avoid sending blank from/to dates
 				objNewCredential.From__cSpecified = ( objNewCredential.From__c != null );
@@ -3871,7 +3871,7 @@ namespace EmTrac2SF
 				objResults = objAPI.Upsert( "Name", objCredentials.ToArray<sObject>() );
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objCredentials, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objCredentials, objResults, tbStatus );
 
 			objWatch.Stop();
 			ReportStatus( string.Concat( "Finished loading credentials. Duration: "
@@ -3894,13 +3894,13 @@ namespace EmTrac2SF
 					objDT = objDB.GetDataTableFromSQLFile( "SQLAllEducationsExperiences.txt" );
 				else
 				{
-					strProviderScript = EmTrac2SFUtils.CreateProviderScript( objContacts );
+					strProviderScript = Company2SFUtils.CreateProviderScript( objContacts );
 					objDT = objDB.GetDataTableFromSQLFile( "SQLEducationExperience.txt", strProviderScript );
 				}
 			}
 			else
 			{
-				objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError ); //, "", " PhysicianNumber__c > 0 " );
+				objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError ); //, "", " PhysicianNumber__c > 0 " );
 				objDT = objDB.GetDataTableFromSQLFile( "SQLAllEducationsExperiences.txt" );
 			}
 
@@ -3912,12 +3912,12 @@ namespace EmTrac2SF
 				return null;
 			}
 
-			// get list of agencies from SalesForce and from EmTrac and get rid of duplicates from EmTrac
+			// get list of agencies from SalesForce and from Company and get rid of duplicates from Company
 			DataTable objDTInstitutions;
 			if( objInstitutions == null )
 			{
 				objDTInstitutions = objDB.GetDataTableFromSQLFile( "SQLAllInstitutions.txt" );
-				objInstitutions = objAPI.Query<Institution__c>( "select Id, Name, EmTrac_Agency_Match__c from Institution__c order by EmTrac_Agency_Match__c" );
+				objInstitutions = objAPI.Query<Institution__c>( "select Id, Name, Company_Agency_Match__c from Institution__c order by Company_Agency_Match__c" );
 			}
 			else
 			{
@@ -3926,13 +3926,13 @@ namespace EmTrac2SF
 				else
 				{
 					if( strProviderScript.Equals( "" ) )
-						strProviderScript = EmTrac2SFUtils.CreateProviderScript( objContacts );
+						strProviderScript = Company2SFUtils.CreateProviderScript( objContacts );
 					objDTInstitutions = objDB.GetDataTableFromSQLFile( "SQLInstitution.txt", strProviderScript );
 				}
 			}
 
 			// add copy of main column to the table to help with duplicate detection
-			EmTrac2SFUtils.FlagDupesByAddressCityName( objDTInstitutions );
+			Company2SFUtils.FlagDupesByAddressCityName( objDTInstitutions );
 
 			// create a sorted list to help avoid duplicate names
 			SortedSet<string> objNames = new SortedSet<string>();
@@ -3955,7 +3955,7 @@ namespace EmTrac2SF
 
 				// convert institution code into lookup id
 				Institution__c objInstitutionFound = objInstitutions.FirstOrDefault(
-									i => i.EmTrac_Agency_Match__c.NotNullAndEquals( objNewEducExp.Institution__c ) );
+									i => i.Company_Agency_Match__c.NotNullAndEquals( objNewEducExp.Institution__c ) );
 				if( objInstitutionFound != null )
 					objNewEducExp.Institution__c = objInstitutionFound.Id;
 				else
@@ -3963,12 +3963,12 @@ namespace EmTrac2SF
 					// if institution code could not be converted into lookup id, this is a possible duplicate
 					// so we attempt to find the related unique code
 					DataRow[] objFound = objDTInstitutions.Select( string.Concat(
-									"EmTrac_Agency_Match__c = '", objNewEducExp.Institution__c, "'" ) );
+									"Company_Agency_Match__c = '", objNewEducExp.Institution__c, "'" ) );
 					if( objFound.Count() > 0 )
 					{
 						// attempt again to convert institution code into lookup id
 						string strInstitution = objFound[ 0 ][ "DuplicateOfCode" ].ToString();
-						objInstitutionFound = objInstitutions.FirstOrDefault( i => i.EmTrac_Agency_Match__c.Equals( strInstitution ) );
+						objInstitutionFound = objInstitutions.FirstOrDefault( i => i.Company_Agency_Match__c.Equals( strInstitution ) );
 						if( objInstitutionFound != null )
 							objNewEducExp.Institution__c = objInstitutionFound.Id;
 					}
@@ -3999,8 +3999,8 @@ namespace EmTrac2SF
 				objNewEducExp.Contact__c = strContactId;
 
 				// fix time zone bug
-				objNewEducExp.From__c = EmTrac2SFUtils.FixTimeZoneBug( objNewEducExp.From__c );
-				objNewEducExp.To__c = EmTrac2SFUtils.FixTimeZoneBug( objNewEducExp.To__c );
+				objNewEducExp.From__c = Company2SFUtils.FixTimeZoneBug( objNewEducExp.From__c );
+				objNewEducExp.To__c = Company2SFUtils.FixTimeZoneBug( objNewEducExp.To__c );
 
 				// attempting to make the credential name unique
 				string strNewName = objNewEducExp.Name;
@@ -4140,7 +4140,7 @@ namespace EmTrac2SF
 			ReportStatus( "Reporting errors for degree/experience" );
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objEducExper, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objEducExper, objResults, tbStatus );
 
 			// collect resid. programs to tie them to the residents
 			List<Residency_Program__c> objResidPrograms = objAPI.Query<Residency_Program__c>(
@@ -4186,7 +4186,7 @@ namespace EmTrac2SF
 			ReportStatus( "Reporting errors for residents" );
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objResidentsToUpsert, objResidentResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objResidentsToUpsert, objResidentResults, tbStatus );
 
 			objWatch.Stop();
 			ReportStatus( string.Concat( "Finished loading degree/experience. Duration: "
@@ -4304,7 +4304,7 @@ namespace EmTrac2SF
 			if( objProviders == null || bMassDataLoad )
 			{
 				if( !bMassDataLoad )
-					objProviders = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError
+					objProviders = Company2SFUtils.GetProvidersFromSF( objAPI, lblError
 						, " Owning_Region__c, Owning_Candidate_Stage__c, Owning_Candidate_Status__c  "
 						, " RecruitingID__c > 0 ", " RecruitingID__c " );
 
@@ -4314,7 +4314,7 @@ namespace EmTrac2SF
 			}
 			else
 			{
-				string strProviderScript = EmTrac2SFUtils.CreateProviderScript( objProviders, true );
+				string strProviderScript = Company2SFUtils.CreateProviderScript( objProviders, true );
 				objDT = objDB.GetDataTableFromSQLFile( "SQLCandidate.txt", strProviderScript );
 				objContractsDT = objDB.GetDataTableFromSQLFile( "SQLContracts.txt", strProviderScript );
 				objInterviewsDT = objDB.GetDataTableFromSQLFile( "SQLAllInterviews.txt", strProviderScript );
@@ -4332,7 +4332,7 @@ namespace EmTrac2SF
 				objFacilities = objAPI.Query<Facility__c>(
 						"select ID, Name, Site_Code__c, Region__c, Sub_Region__c, Sub_Region__r.SubRegionCode__c from Facility__c order by Site_Code__c" );
 
-			List<EMSC2SF.User> objUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			// load candidates from datatable to agency list
 			List<Candidate__c> objCandidates = new List<Candidate__c>( objDT.Rows.Count );
@@ -4371,7 +4371,7 @@ namespace EmTrac2SF
 			ReportStatus( "Reporting errors for candidates" );
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objCandidates, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objCandidates, objResults, tbStatus );
 
 			// this is to avoid errors since Name is a formula (SalesForce is dumb!)
 			foreach( Contact objProvider2Upd in objProvidersToUpdate )
@@ -4383,7 +4383,7 @@ namespace EmTrac2SF
 				objProviderResults = objAPI.Update( objProvidersToUpdate.ToArray<sObject>() );
 			// sometimes we get error of "can't update name"
 
-			EmTrac2SFUtils.ReportErrors( objProviderResults, tbStatus );
+			Company2SFUtils.ReportErrors( objProviderResults, tbStatus );
 
 			// now that we have Candidate__c ids, hook the interviews to them
 			iSkipped = 0;
@@ -4408,7 +4408,7 @@ namespace EmTrac2SF
 			ReportStatus( "Reporting errors for interviews" );
 
 			// create CSV file / set the Ids in the list of interviews
-			EmTrac2SFUtils.SetIdsReportErrors( objInterviews, objInterviewResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objInterviews, objInterviewResults, tbStatus );
 
 			// we have Candidate__c ids, hook the contracts to them
 			iSkipped = 0;
@@ -4442,7 +4442,7 @@ namespace EmTrac2SF
 			ReportStatus( "Reporting errors for contracts" );
 
 			// create CSV file / set the Ids in the list of interviews
-			EmTrac2SFUtils.SetIdsReportErrors( objContracts, objContractResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objContracts, objContractResults, tbStatus );
 
 			objWatch.Stop();
 			ReportStatus( string.Concat( "Finished loading candidates. Duration: "
@@ -4585,11 +4585,11 @@ namespace EmTrac2SF
 			}
 
 			// fix time zone bug
-			objNewCandidate.Application_Received__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCandidate.Application_Received__c );
-			objNewCandidate.Application_Sent__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCandidate.Application_Sent__c );
-			objNewCandidate.Interview_Actual_Date__c = null;// EmTrac2SFUtils.FixTimeZoneBug( objNewCandidate.Interview_Actual_Date__c );
-			objNewCandidate.First_Shift_Date__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCandidate.First_Shift_Date__c );
-			objNewCandidate.Termination_Resignation_Effective_Date__c = EmTrac2SFUtils.FixTimeZoneBug( objNewCandidate.Termination_Resignation_Effective_Date__c );
+			objNewCandidate.Application_Received__c = Company2SFUtils.FixTimeZoneBug( objNewCandidate.Application_Received__c );
+			objNewCandidate.Application_Sent__c = Company2SFUtils.FixTimeZoneBug( objNewCandidate.Application_Sent__c );
+			objNewCandidate.Interview_Actual_Date__c = null;// Company2SFUtils.FixTimeZoneBug( objNewCandidate.Interview_Actual_Date__c );
+			objNewCandidate.First_Shift_Date__c = Company2SFUtils.FixTimeZoneBug( objNewCandidate.First_Shift_Date__c );
+			objNewCandidate.Termination_Resignation_Effective_Date__c = Company2SFUtils.FixTimeZoneBug( objNewCandidate.Termination_Resignation_Effective_Date__c );
 
 			// if dates are not null, flag them
 			objNewCandidate.Application_Received__cSpecified = ( objNewCandidate.Application_Received__c != null );
@@ -4624,7 +4624,7 @@ namespace EmTrac2SF
 				{
 					objNewInterview = new Interview__c();
 
-					objNewInterview.Interview_Actual_Date__c = EmTrac2SFUtils.FixTimeZoneBug( Convert.ToDateTime( strDate ) );
+					objNewInterview.Interview_Actual_Date__c = Company2SFUtils.FixTimeZoneBug( Convert.ToDateTime( strDate ) );
 					objNewInterview.Interview_Actual_Date__cSpecified = true;
 					objNewInterview.Declined__c = objInterviewDR[ "Declined__c" ].ToString();
 					objNewInterview.Interviewing_with_Role__c = "Medical Director";
@@ -4641,7 +4641,7 @@ namespace EmTrac2SF
 				if( !strDate.Equals( "" ) )
 				{
 					objNewInterview = new Interview__c();
-					objNewInterview.Interview_Actual_Date__c = EmTrac2SFUtils.FixTimeZoneBug( Convert.ToDateTime( strDate ) );
+					objNewInterview.Interview_Actual_Date__c = Company2SFUtils.FixTimeZoneBug( Convert.ToDateTime( strDate ) );
 					objNewInterview.Interview_Actual_Date__cSpecified = true;
 					objNewInterview.Declined__c = objInterviewDR[ "Declined__c" ].ToString();
 					objNewInterview.Interviewing_with_Role__c = "Regional Medical Director";
@@ -4685,10 +4685,10 @@ namespace EmTrac2SF
 				}
 
 				// fix time zone bug
-				objNewContract.Date_Contract_Received__c = EmTrac2SFUtils.FixTimeZoneBug( objNewContract.Date_Contract_Received__c );
-				objNewContract.Date_Contract_Sent__c = EmTrac2SFUtils.FixTimeZoneBug( objNewContract.Date_Contract_Sent__c );
-				objNewContract.Contract_Effective_Date__c = EmTrac2SFUtils.FixTimeZoneBug( objNewContract.Contract_Effective_Date__c );
-				dtContract = (DateTime) EmTrac2SFUtils.FixTimeZoneBug( (DateTime?) dtContract );
+				objNewContract.Date_Contract_Received__c = Company2SFUtils.FixTimeZoneBug( objNewContract.Date_Contract_Received__c );
+				objNewContract.Date_Contract_Sent__c = Company2SFUtils.FixTimeZoneBug( objNewContract.Date_Contract_Sent__c );
+				objNewContract.Contract_Effective_Date__c = Company2SFUtils.FixTimeZoneBug( objNewContract.Contract_Effective_Date__c );
+				dtContract = (DateTime) Company2SFUtils.FixTimeZoneBug( (DateTime?) dtContract );
 
 				objNewContract.Date_Contract_Received__cSpecified = true;
 				objNewContract.Date_Contract_Sent__cSpecified = true;
@@ -4722,7 +4722,7 @@ namespace EmTrac2SF
 			UserRole objRole = objAPI.QuerySingle<UserRole>( "select ID from UserRole where Name = 'Recruiter' " );
 			Profile objProfile = objAPI.QuerySingle<Profile>( "select ID from Profile where Name = 'Recruiter Profile' " );
 
-			List<EMSC2SF.User> objExistingUsers = EmTrac2SFUtils.GetSFUserList( objAPI, lblError );
+			List<EMSC2SF.User> objExistingUsers = Company2SFUtils.GetSFUserList( objAPI, lblError );
 
 			List<EMSC2SF.User> objUsers = new List<EMSC2SF.User>();
 
@@ -4799,7 +4799,7 @@ namespace EmTrac2SF
 					// instead of skipping
 					if( objFoundInSF == null || objFoundInSF.IsActive == false )
 					{
-						// user is not in SF and is inactive in EmTrac, so we report and process next user
+						// user is not in SF and is inactive in Company, so we report and process next user
 						tbStatus.Text = string.Concat( tbStatus.Text, "\r\nUser inactive: ", objDR.ToTabString() );
 						continue;
 					}
@@ -4901,10 +4901,10 @@ namespace EmTrac2SF
 				if( ( objUsers.Count % 20 ) == 0 )
 				{
 					if( !bDisplayOnly )
-						objUsersResults = objAPI.Upsert( "EmTrac_Username__c", objUsers.ToArray<sObject>() );
+						objUsersResults = objAPI.Upsert( "Company_Username__c", objUsers.ToArray<sObject>() );
 
 					// create CSV file / set the Ids in the list of users
-					EmTrac2SFUtils.SetIdsReportErrors( objUsers, objUsersResults, tbStatus );
+					Company2SFUtils.SetIdsReportErrors( objUsers, objUsersResults, tbStatus );
 
 					objUsers.Clear();
 				}
@@ -4915,10 +4915,10 @@ namespace EmTrac2SF
 
 
 			if( !bDisplayOnly )
-				objUsersResults = objAPI.Upsert( "EmTrac_Username__c", objUsers.ToArray<sObject>() );
+				objUsersResults = objAPI.Upsert( "Company_Username__c", objUsers.ToArray<sObject>() );
 
 			// create CSV file / set the Ids in the list of users
-			EmTrac2SFUtils.SetIdsReportErrors( objUsers, objUsersResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objUsers, objUsersResults, tbStatus );
 
 			return objUsers;
 		}
@@ -4977,7 +4977,7 @@ namespace EmTrac2SF
 				string strState = objDR[ "Program_State" ].ToString();
 
 				// convert institution code into lookup id
-				Institution__c objInstitutionFound = EmTrac2SFUtils.FindInstitution( objInstitutions, strName
+				Institution__c objInstitutionFound = Company2SFUtils.FindInstitution( objInstitutions, strName
 													, objProgram.Name, strAddress, strCity, strState );
 
 				string strId = "";
@@ -4993,7 +4993,7 @@ namespace EmTrac2SF
 						objInstitutionFound.Name = strProgramName;
 						objInstitutionFound.Metaphone_Name__c = strProgramName.ToNormalizedMetaphone();
 						objInstitutionFound.Code__c = objProgram.Name.Left( 100 );
-						objInstitutionFound.EmTrac_Agency_Match__c = objProgram.Name.Left( 50 );
+						objInstitutionFound.Company_Agency_Match__c = objProgram.Name.Left( 50 );
 						objInstitutionFound.Credential_Type__c = "Institution";
 						objInstitutionFound.Address1__c = strAddress;
 						objInstitutionFound.Metaphone_Address__c = strAddress.ToNormalizedMetaphone();
@@ -5039,7 +5039,7 @@ namespace EmTrac2SF
 				objInstitutionResults = objAPI.Upsert( "Name", objNewInstitutions.ToArray<sObject>() );
 
 			// set the Ids
-			EmTrac2SFUtils.SetIdsReportErrors( objNewInstitutions, objInstitutionResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objNewInstitutions, objInstitutionResults, tbStatus );
 
 			// associate programs with the id of the new institutions
 			foreach( Residency_Program__c objProgram in objResidPrograms.Where( p => p.Program_Institution__c.Equals( "" ) ) )
@@ -5055,7 +5055,7 @@ namespace EmTrac2SF
 				objResidProgramResults = objAPI.Upsert( "Program_ID__c", objResidPrograms.ToArray<sObject>() );
 
 			// set the Ids
-			EmTrac2SFUtils.SetIdsReportErrors( objResidPrograms, objResidProgramResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objResidPrograms, objResidProgramResults, tbStatus );
 
 			return objResidPrograms;
 		}
@@ -5074,11 +5074,11 @@ namespace EmTrac2SF
 
 			if( objResidPrograms == null )
 				objResidPrograms = objAPI.Query<Residency_Program__c>(
-				"select Id, Program_Id__c, Name from Residency_Program__c ORDER BY Program_Id__c" );
+				"select Id, Program_Id__c, Name from Table that stores resident programs ORDER BY Program_Id__c" );
 
 			List<Resident__c> objResidents = new List<Resident__c>();
 			List<Contact> objNewProviders = new List<Contact>();
-			List<Contact> objContacts = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError, " Birthdate ", "", " Name " );
+			List<Contact> objContacts = Company2SFUtils.GetProvidersFromSF( objAPI, lblError, " Birthdate ", "", " Name " );
 
 			System.Text.RegularExpressions.Regex objRegEx = new System.Text.RegularExpressions.Regex(
 						@"\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*" );
@@ -5197,7 +5197,7 @@ namespace EmTrac2SF
 				objProvidersResults = objAPI.Insert( objNewProviders.ToArray<sObject>() );
 
 			// report errors
-			EmTrac2SFUtils.ReportErrors( objProvidersResults, tbStatus );
+			Company2SFUtils.ReportErrors( objProvidersResults, tbStatus );
 
 			// associate residents with the id of the new contacts
 			foreach( Resident__c objResident in objResidents.Where( r => r.Contact__c.Equals( "" ) ) )
@@ -5222,7 +5222,7 @@ namespace EmTrac2SF
 				objResidentsResults = objAPI.Upsert( "Name", objResidents.ToArray<sObject>() );
 
 			// set the Ids
-			EmTrac2SFUtils.SetIdsReportErrors( objResidents, objResidentsResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objResidents, objResidentsResults, tbStatus );
 
 			return objResidents;
 		}
@@ -5231,12 +5231,12 @@ namespace EmTrac2SF
 		{
 			DataTable objDT = null;
 			if( objProviders == null )
-				objProviders = EmTrac2SFUtils.GetProvidersFromSF( objAPI, lblError );
+				objProviders = Company2SFUtils.GetProvidersFromSF( objAPI, lblError );
 
 			if( bImportAllRecords )
 				objDT = objDB.GetDataTableFromSQLFile( "SQLAllReferences.txt" );
 			else
-				objDT = objDB.GetDataTableFromSQLFile( "SQLReferences.txt", EmTrac2SFUtils.CreateProviderScript( objProviders ) );
+				objDT = objDB.GetDataTableFromSQLFile( "SQLReferences.txt", Company2SFUtils.CreateProviderScript( objProviders ) );
 
 			tbStatus.Text = string.Concat( tbStatus.Text, "\r\n", objDT.Rows.Count, " reference rows retrieved.\r\n" );
 			if( !objDB.ErrorMessage.Equals( "" ) )
@@ -5284,7 +5284,7 @@ namespace EmTrac2SF
 				objResults = objAPI.Upsert( "Name", objReferences.ToArray<sObject>() );
 
 			// create CSV file / set the Ids in the list of candidates
-			EmTrac2SFUtils.SetIdsReportErrors( objReferences, objResults, tbStatus );
+			Company2SFUtils.SetIdsReportErrors( objReferences, objResults, tbStatus );
 
 			return objReferences;
 		}
